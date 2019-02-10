@@ -1,6 +1,6 @@
 from django.test import TestCase
 from django.contrib.auth import get_user_model
-from trip import models
+from trip.models import Trip
 
 
 class TripModelTests(TestCase):
@@ -12,7 +12,7 @@ class TripModelTests(TestCase):
             email='valid@testemail.com',
             password='testpassword'
         )
-        trip = models.Trip.objects.create(
+        trip = Trip.objects.create(
             title='Test Title',
             author=user,
             description='Trip object test'

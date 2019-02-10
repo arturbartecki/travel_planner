@@ -23,3 +23,7 @@ class TripViewSet(viewsets.ModelViewSet):
             return queryset
         queryset = queryset.filter(is_public=True)
         return queryset
+    
+    def perform_create(self, serializer):
+        """Create new trip"""
+        serializer.save(author=self.request.user)

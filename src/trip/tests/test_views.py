@@ -48,6 +48,21 @@ class PublicTripApiTest(TestCase):
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(len(res.data), 1)
+    
+    def test_create_trip_unauthenticated(self):
+        """Test if trip can be created as not authenticated user"""
+        user = sample_user()
+        payload = {
+            'title': 'Test title',
+            'author': user,
+            'description': 'Test description'
+        }
+
+        res = self.client.post(TRIPS_URL, payload)
+        trips = Trip.objects.all()
+
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(len(trips), 0)
 
 
 class PrivateTripApiTest(TestCase):
@@ -87,3 +102,24 @@ class PrivateTripApiTest(TestCase):
         self.assertIn(serializer2.data, res.data)
         self.assertNotIn(serializer3.data, res.data)
         self.assertEqual(len(res.data), 2)
+    
+    def test_create_valid_trip(self):
+        """Test if authenticated user can create trip"""
+        payload = {
+            'title': 'Test title 1',
+            # Author should be added automatically
+            'description': 'Test description'
+        }
+        res = self.client.post(TRIPS_URL, payload)
+        trips = Trip.objects.all()
+
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(len(trips), 1)
+    
+    def test_create_invalid_trip(self):
+        """Test if authenticated user can create trip with invalid data"""
+        res = self.client.post(TRIPS_URL, {'title': ''})
+        trip = Trip.objects.all()
+
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(len(trip), 0)

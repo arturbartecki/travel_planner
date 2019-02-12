@@ -9,4 +9,14 @@ class TripSerializer(serializers.ModelSerializer):
     class Meta:
         model = Trip
         fields = ('id', 'title', 'author', 'description')
-        read_only_fields = ('id','author')
+        read_only_fields = ('id', 'author')
+
+
+class TripDetailSerializer(serializers.ModelSerializer):
+    """Serializer for trip detail view"""
+    # In future detail will contain more info than regular TripSerialzier
+
+    class Meta:
+        model = Trip
+        fields = ('id', 'title', 'author', 'description')
+        read_only_fields = ('id', 'author')

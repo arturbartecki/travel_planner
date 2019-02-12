@@ -6,7 +6,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from trip.models import Trip
-from trip.serializers import TripSerializer
+from trip.serializers import TripSerializer, TripDetailSerializer
 
 TRIPS_URL = reverse('trip:trip-list')
 
@@ -23,24 +23,28 @@ def sample_user(
     )
 
 
+def get_trip_detail_url(trip_id):
+    return reverse('trip:trip-detail', args=[trip_id])
+
+
 class PublicTripApiTest(TestCase):
     """Test unauthenticated trip API access"""
 
     def setUp(self):
+        self.user = sample_user()
         self.client = APIClient()
 
-    def test_list_public_trips(self):
+    def test_public_list_trips(self):
         """Test retrieving list of public trips"""
-        user = sample_user()
         Trip.objects.create(
             title='Test title',
-            author=user,
+            author=self.user,
             description='Test description',
             is_public=False,
         )
         Trip.objects.create(
             title='2nd object',
-            author=user,
+            author=self.user,
             description='Test description',
         )
 
@@ -48,13 +52,41 @@ class PublicTripApiTest(TestCase):
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(len(res.data), 1)
-    
-    def test_create_trip_unauthenticated(self):
+
+    def test_public_detail_private_trip(self):
+        """Test if unauthorized user can view trip with is_public=False"""
+        trip = Trip.objects.create(
+            title='Test title',
+            author=self.user,
+            description='Test desc',
+            is_public=False
+        )
+
+        url = get_trip_detail_url(trip.id)
+        res = self.client.get(url)
+
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_public_detail_public_trip(self):
+        """Test if unauthorized user can view trip with is_public=True"""
+        trip = Trip.objects.create(
+            title='Test title',
+            author=self.user,
+            description='Test desc'
+        )
+        url = get_trip_detail_url(trip.id)
+        res = self.client.get(url)
+
+        serializer = TripDetailSerializer(trip)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(serializer.data, res.data)
+
+    def test_public_create_trip(self):
         """Test if trip can be created as not authenticated user"""
-        user = sample_user()
         payload = {
             'title': 'Test title',
-            'author': user,
+            'author': self.user,
             'description': 'Test description'
         }
 
@@ -63,6 +95,59 @@ class PublicTripApiTest(TestCase):
 
         self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertEqual(len(trips), 0)
+
+    def test_public_partial_update_trip(self):
+        """Test if unauthorized user can update trip with patch"""
+        trip = Trip.objects.create(
+            title='Test title',
+            author=self.user,
+            description='Test desc'
+        )
+
+        payload = {
+            'title': 'New title'
+        }
+
+        url = get_trip_detail_url(trip.id)
+        res = self.client.patch(url, payload)
+        trip.refresh_from_db()
+
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertNotEqual(trip.title, payload['title'])
+
+    def test_public_full_update_trip(self):
+        """Test if unauthorized user can update trip with put"""
+        trip = Trip.objects.create(
+            title='Test title',
+            author=self.user,
+            description='Test desc'
+        )
+
+        payload = {
+            'title': 'New title',
+            'author': self.user,
+            'description': 'New description'
+        }
+
+        url = get_trip_detail_url(trip.id)
+        res = self.client.put(url, payload)
+        trip.refresh_from_db()
+
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertNotEqual(trip.title, payload['title'])
+        self.assertNotEqual(trip.description, payload['description'])
+
+    def test_public_delete_trip(self):
+        """Test if unauthorized user can delete trip"""
+        trip = Trip.objects.create(
+            title='Test title',
+            author=self.user,
+            description='test desc'
+        )
+        url = get_trip_detail_url(trip.id)
+        res = self.client.delete(url)
+
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
 class PrivateTripApiTest(TestCase):
@@ -73,13 +158,14 @@ class PrivateTripApiTest(TestCase):
         self.user = sample_user()
         self.client.force_authenticate(self.user)
 
+    # Test trips with author == request.user
+
     def test_retrieve_trips(self):
         """Test retrieving trips filtered by is_public"""
         user2 = sample_user(email='test@validemail.com')
         trip1 = Trip.objects.create(
             title='Test 1',
             author=self.user,
-
         )
         trip2 = Trip.objects.create(
             title='Test 2',
@@ -102,7 +188,7 @@ class PrivateTripApiTest(TestCase):
         self.assertIn(serializer2.data, res.data)
         self.assertNotIn(serializer3.data, res.data)
         self.assertEqual(len(res.data), 2)
-    
+
     def test_create_valid_trip(self):
         """Test if authenticated user can create trip"""
         payload = {
@@ -115,7 +201,7 @@ class PrivateTripApiTest(TestCase):
 
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
         self.assertEqual(len(trips), 1)
-    
+
     def test_create_invalid_trip(self):
         """Test if authenticated user can create trip with invalid data"""
         res = self.client.post(TRIPS_URL, {'title': ''})
@@ -123,3 +209,165 @@ class PrivateTripApiTest(TestCase):
 
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(len(trip), 0)
+
+    def test_trip_detail_view(self):
+        """Test viewing trip detail"""
+        trip = Trip.objects.create(
+            title='Test title',
+            author=self.user,
+            description='Test desc'
+        )
+
+        url = get_trip_detail_url(trip.id)
+        res = self.client.get(url)
+
+        serializer = TripDetailSerializer(trip)
+
+        self.assertEqual(serializer.data, res.data)
+
+    def test_partial_update_trip(self):
+        """Test updating trip with PATCH"""
+        trip = Trip.objects.create(
+            title='Test title',
+            author=self.user,
+            description='Test description'
+        )
+
+        payload = {
+            'title': 'New title'
+        }
+
+        url = get_trip_detail_url(trip.id)
+        res = self.client.patch(url, payload)
+
+        trip.refresh_from_db()
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(trip.title, payload['title'])
+
+    def test_full_update_trip(self):
+        """Test updating trip with PUT"""
+
+        trip = Trip.objects.create(
+            title='Test title',
+            author=self.user,
+            description='Test desc'
+        )
+        payload = {
+            'title': 'New title',
+            'author': self.user,
+            'description': 'New description'
+        }
+
+        url = get_trip_detail_url(trip.id)
+        res = self.client.put(url, payload)
+
+        trip.refresh_from_db()
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(trip.title, payload['title'])
+        self.assertEqual(trip.author, payload['author'])
+        self.assertEqual(trip.description, payload['description'])
+
+    def test_delete_trip(self):
+        """Test deleting trip"""
+        trip = Trip.objects.create(
+            title='Test title',
+            author=self.user,
+            description='Test desc'
+        )
+        trips = Trip.objects.all()
+
+        self.assertEqual(len(trips), 1)
+
+        url = get_trip_detail_url(trip.id)
+        self.client.delete(url)
+
+        trips = Trip.objects.all()
+        self.assertEqual(len(trips), 0)
+
+    # Test trips with author != request.user
+
+    def test_noauthor_create_trip(self):
+        """Test if user can create trip and assign other user to author """
+        user2 = sample_user(email='testvalid@email.com')
+
+        payload = {
+            'title': 'test title',
+            'author': user2,
+            'description': 'Test desc'
+        }
+
+        res = self.client.post(TRIPS_URL, payload)
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+
+        # Check if trip author is changed to request.user
+        trip = Trip.objects.get(title=payload['title'])
+        self.assertEqual(trip.author, self.user)
+
+    def test_notauthor_private_trip_detail_view(self):
+        """Test if user can see private trip details """
+        user2 = sample_user(email='testvalid@email.com')
+
+        trip = Trip.objects.create(
+            title='Test title',
+            author=user2,
+            description='Test description',
+            is_public=False
+        )
+
+        url = get_trip_detail_url(trip.id)
+        res = self.client.get(url)
+
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_noauthor_partial_update_trip(self):
+        """Test if user can update other user trip using PATCH"""
+        user2 = sample_user(email='testvalid@email.com')
+        trip = Trip.objects.create(
+            title='Test title',
+            author=user2,
+            description='Test description'
+        )
+
+        payload = {
+            'title': 'New title'
+        }
+
+        url = get_trip_detail_url(trip.id)
+        res = self.client.patch(url, payload)
+
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_noauthor_full_update_trip(self):
+        """Test if user can update other user trip using PUT """
+        user2 = sample_user(email='testvalid@email.com')
+        trip = Trip.objects.create(
+            title='Test title',
+            author=user2,
+            description='Test description'
+        )
+
+        payload = {
+            'title': 'New title',
+            'description': 'New description'
+        }
+
+        url = get_trip_detail_url(trip.id)
+        res = self.client.put(url, payload)
+
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_noauthor_delete_trip(self):
+        """Test if user can delete other user trip """
+        user2 = sample_user(email='testvalid@email.com')
+        trip = Trip.objects.create(
+            title='Test title',
+            author=user2,
+            description='Test description'
+        )
+
+        url = get_trip_detail_url(trip.id)
+        res = self.client.delete(url)
+
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)

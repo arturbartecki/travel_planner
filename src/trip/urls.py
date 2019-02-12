@@ -9,5 +9,5 @@ router.register('trip', TripViewSet)
 app_name = 'trip'
 
 urlpatterns = [
-    path('', include(router.urls))
+    path('', include(router.urls)),
 ]

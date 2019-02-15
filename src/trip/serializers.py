@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Trip
+from .models import Trip, TripDay
 
 
 class TripSerializer(serializers.ModelSerializer):
@@ -20,3 +20,12 @@ class TripDetailSerializer(serializers.ModelSerializer):
         model = Trip
         fields = ('id', 'title', 'author', 'description')
         read_only_fields = ('id', 'author')
+
+
+class TripDaySerializer(serializers.ModelSerializer):
+    """Serializer for Trip Day object"""
+
+    class Meta:
+        model = TripDay
+        fields = ('id', 'trip', 'order', 'content')
+        read_only_fields = ('id', 'trip', 'order')

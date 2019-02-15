@@ -5,10 +5,11 @@ from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from trip.models import Trip
+from trip.models import Trip, TripDay
 from trip.serializers import TripSerializer, TripDetailSerializer
 
 TRIPS_URL = reverse('trip:trip-list')
+TRIP_DAYS_URL = reverse('trip:tripday-list')
 
 
 def sample_user(
@@ -371,3 +372,103 @@ class PrivateTripApiTest(TestCase):
         res = self.client.delete(url)
 
         self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class PublicTripDayApiTest(TestCase):
+    """Test unauthenticated trip day API access"""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.user = sample_user()
+        self.trip = Trip.objects.create(
+            title='Test title',
+            author=self.user,
+            description='Test description'
+        )
+        self.private_trip = Trip.objects.create(
+            title='Private title',
+            author=self.user,
+            description='Private description',
+            is_public=False
+        )
+
+    def test_public_list_trip_days(self):
+        """Test public trip days list"""
+        TripDay.objects.create(
+            trip=self.trip,
+            content='Test content'
+        )
+        TripDay.objects.create(
+            trip=self.trip,
+            content='Test content 2'
+        )
+        TripDay.objects.create(
+            trip=self.private_trip,
+            content='Test content'
+        )
+
+        res = self.client.get(TRIP_DAYS_URL)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 2)
+
+
+class PrivateTripDayApiTest(TestCase):
+    """Test trip day api as authenticated user"""
+
+    def setUp(self):
+        self.user = sample_user()
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+        self.trip = Trip.objects.create(
+            title='Test title',
+            author=self.user,
+            description='Test description'
+        )
+        self.private_trip = Trip.objects.create(
+            title='Private title',
+            author=self.user,
+            description='Private description',
+            is_public=False
+        )
+
+    def test_private_list_trip_days(self):
+        """Test if trip days list is correct"""
+        TripDay.objects.create(
+            trip=self.trip,
+            content='Test content'
+        )
+        TripDay.objects.create(
+            trip=self.trip,
+            content='Test content 2'
+        )
+        TripDay.objects.create(
+            trip=self.trip,
+            content='Test content'
+        )
+        res = self.client.get(TRIP_DAYS_URL)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 3)
+
+    def test_private_list_private_trip_days(self):
+        """If other user's private trip days are listed"""
+        TripDay.objects.create(
+            trip=self.trip,
+            content='Test content'
+        )
+        user2 = sample_user(email='anothervalid@email.com')
+        private_trip = Trip.objects.create(
+            title='Private title',
+            author=user2,
+            description='Private desc'
+        )
+        TripDay.objects.create(
+            trip=private_trip,
+            content='Private content'
+        )
+
+        res = self.client.get(TRIP_DAYS_URL)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 2)

@@ -31,3 +31,14 @@ class IsAuthorOrReadOnly(permissions.IsAuthenticatedOrReadOnly):
         # If user is not authenticated and method is safe return true
 
         return False
+
+
+class IsTripAuthorOrReadOnly(IsAuthorOrReadOnly):
+    """Extension"""
+
+    def has_object_permission(self, request, view, obj):
+        obj = obj.trip
+        return super(
+            IsTripAuthorOrReadOnly,
+            self
+        ).has_object_permission(request, view, obj)

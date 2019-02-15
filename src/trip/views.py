@@ -2,9 +2,9 @@ from django.db.models import Q
 from rest_framework import viewsets
 from rest_framework.authentication import TokenAuthentication
 
-from .models import Trip
-from .serializers import TripSerializer
-from .permissions import IsAuthorOrReadOnly
+from .models import Trip, TripDay
+from .serializers import TripSerializer, TripDaySerializer
+from .permissions import IsAuthorOrReadOnly, IsTripAuthorOrReadOnly
 
 
 class TripViewSet(viewsets.ModelViewSet):
@@ -28,3 +28,22 @@ class TripViewSet(viewsets.ModelViewSet):
         """Create new trip"""
         # Assign request user to new trip
         serializer.save(author=self.request.user)
+
+
+class TripDayViewSet(viewsets.ModelViewSet):
+    """Manage trip days in database"""
+    serializer_class = TripDaySerializer
+    queryset = TripDay.objects.all()
+    authentication_classes = (TokenAuthentication,)
+    permission_classes = (IsTripAuthorOrReadOnly,)
+
+    def get_queryset(self):
+        user = self.request.user
+        queryset = self.queryset
+        if not user.is_anonymous:
+            queryset = queryset.filter(
+                Q(trip__author=user.id) | Q(trip__is_public=True)
+            )
+            return queryset
+        queryset = queryset.filter(trip__is_public=True)
+        return queryset

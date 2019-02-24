@@ -47,3 +47,8 @@ class TripDayViewSet(viewsets.ModelViewSet):
             return queryset
         queryset = queryset.filter(trip__is_public=True)
         return queryset
+
+    def perform_create(self, serializer):
+        """Ensure that request user owns trip"""
+        if serializer.is_valid():
+            serializer.save()

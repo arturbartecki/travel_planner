@@ -1,4 +1,4 @@
-from rest_framework import serializers
+from rest_framework import serializers, exceptions
 
 from .models import Trip, TripDay
 
@@ -25,7 +25,19 @@ class TripDetailSerializer(serializers.ModelSerializer):
 class TripDaySerializer(serializers.ModelSerializer):
     """Serializer for Trip Day object"""
 
+    trip = serializers.PrimaryKeyRelatedField(
+        queryset=Trip.objects.all(),
+        many=False
+    )
+
     class Meta:
         model = TripDay
-        fields = ('id', 'trip', 'order', 'content')
-        read_only_fields = ('id', 'trip', 'order')
+        fields = ('id', 'order', 'trip', 'content')
+        read_only_fields = ('id', 'order')
+
+    def validate(self, attrs):
+        user = self.context['request'].user
+        if attrs['trip'].author == user:
+            return attrs
+        else:
+            raise exceptions.ValidationError()

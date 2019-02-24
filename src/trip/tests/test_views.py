@@ -472,3 +472,22 @@ class PrivateTripDayApiTest(TestCase):
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(len(res.data), 2)
+
+    def test_create_trip_day_when_not_trip_author(self):
+        """Test if user can create trip_day while not being trip author"""
+        user2 = sample_user(email='another@valid.com')
+        private_trip = Trip.objects.create(
+            title='Private title',
+            author=user2,
+            description='Private desc'
+        )
+        payload = {
+            'content': 'Test content',
+            'trip': f'{private_trip.id}'
+        }
+
+        res = self.client.post(TRIP_DAYS_URL, payload)
+        queryset = TripDay.objects.all()
+
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(len(queryset), 0)
